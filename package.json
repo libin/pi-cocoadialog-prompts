@@ -25,11 +25,15 @@
   },
   "files": [
     "index.ts",
+    "scripts",
     "skills",
     "README.md",
     "LICENSE"
   ],
   "main": "./index.ts",
+  "scripts": {
+    "postinstall": "node scripts/promote.mjs"
+  },
   "pi": {
     "extensions": ["./index.ts"],
     "skills": ["./skills"]

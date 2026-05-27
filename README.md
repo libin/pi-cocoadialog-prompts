@@ -23,11 +23,27 @@ display) — fall back to `pi-ask-user` for those sessions.
 pi install git:github.com/libin/pi-cocoadialog-prompts
 ```
 
-Or try without installing:
+A `postinstall` hook bumps this package to the first slot in
+`~/.pi/agent/settings.json`'s `packages` array. Pi's tool registry uses
+first-wins ordering when multiple extensions register the same name
+(e.g. `pi-agent-dashboard` also registers `ask_user`), so this is required
+for the native dialog to win.
+
+Make sure `cocoadialog` is reachable. Either:
+- Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog),
+  copy `.build/release/cocoadialog` into `/usr/local/bin/`
+- Set `COCOADIALOG_BIN` to the absolute binary path
+- Or rely on the bundled TextMate `Bundle Support.tmbundle` copy
+  (auto-detected).
+
+To try without installing:
 
 ```sh
 pi -e git:github.com/libin/pi-cocoadialog-prompts
 ```
+
+(In `-e` mode the postinstall hook does not run; ensure your settings already
+put us first or call `node scripts/promote.mjs` manually.)
 
 Make sure `cocoadialog` is reachable. Either:
    - Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog),

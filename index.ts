@@ -168,12 +168,13 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 	const displayLabels = options.map((o) => (o.description ? `${o.title} — ${o.description}` : o.title));
 	if (allowFreeform) displayLabels.push(FREEFORM_LABEL);
 
-	// Pick a control: dropdown when single-select-from-many, checkbox for multi.
+	// Pick a control: radio for short single-select lists, dropdown for many,
+	// checkbox for multi-select.
 	let control: string;
 	if (allowMultiple) {
 		control = "checkbox";
-	} else if (options.length <= 4 && options.some((o) => o.description)) {
-		// Few rich options → radio (description is visible inline)
+	} else if (displayLabels.length <= 8) {
+		// Radio surfaces every option at a glance and the freeform row.
 		control = "radio";
 	} else {
 		control = "dropdown";
@@ -291,7 +292,6 @@ export default function (pi: ExtensionAPI) {
 		parameters: AskParams,
 
 		async execute(_id, params, signal) {
-			console.error(`[cocoadialog-prompts] EXECUTE called: ${JSON.stringify(params).slice(0, 200)}`);
 			try {
 				const details = await ask(bin, params, signal);
 				return {
@@ -307,6 +307,4 @@ export default function (pi: ExtensionAPI) {
 			}
 		},
 	});
-
-	console.error(`[cocoadialog-prompts] ask_user routed to ${bin}`);
 }

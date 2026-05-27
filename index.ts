@@ -291,6 +291,7 @@ export default function (pi: ExtensionAPI) {
 		parameters: AskParams,
 
 		async execute(_id, params, signal) {
+			console.error(`[cocoadialog-prompts] EXECUTE called: ${JSON.stringify(params).slice(0, 200)}`);
 			try {
 				const details = await ask(bin, params, signal);
 				return {

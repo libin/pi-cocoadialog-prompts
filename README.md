@@ -65,6 +65,7 @@ Make sure `cocoadialog` is reachable. Either:
   | `allowMultiple`  | `boolean?` | Multi-select (uses checkbox dialog) |
   | `allowFreeform`  | `boolean?` (default true) | Adds a "Type something…" fallback |
   | `allowComment`   | `boolean?` | Second prompt for an optional comment |
+  | `freeformMultiline` | `boolean?` | Use multi-line textbox (⌘⏎ submits) for freeform answer instead of single-line input |
   | `timeout`        | `number?` | Auto-dismiss in N milliseconds |
 
 ## Result shape

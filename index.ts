@@ -88,6 +88,7 @@ const AskParams = Type.Object({
 	allowMultiple: Type.Optional(Type.Boolean({ description: "Enable multi-select", default: false })),
 	allowFreeform: Type.Optional(Type.Boolean({ description: "Add a 'Type something' freeform fallback", default: true })),
 	allowComment: Type.Optional(Type.Boolean({ description: "Collect optional extra-context comment", default: false })),
+	freeformMultiline: Type.Optional(Type.Boolean({ description: "Use a multi-line text box for the freeform answer (default: single-line input)", default: false })),
 	timeout: Type.Optional(Type.Number({ description: "Auto-dismiss after N ms; returns null on timeout" })),
 });
 
@@ -135,6 +136,30 @@ function timeoutSeconds(ms?: number): string[] {
 const FREEFORM_LABEL = "Type something…";
 const COMMENT_LABEL = "Comment (optional)";
 
+async function freeformInput(
+	bin: string,
+	header: string,
+	message: string,
+	multiline: boolean,
+	timeoutArgs: string[],
+	signal?: AbortSignal,
+): Promise<{ ok: boolean; text: string }> {
+	const control = multiline ? "textbox" : "inputbox";
+	const args = [
+		control,
+		"--title", "Pi",
+		"--header", header,
+		"--message", message || "Type your answer:",
+		"--buttons", "OK", "Cancel",
+		...timeoutArgs,
+	];
+	const r = await runCD(bin, args, signal);
+	if (r.button !== "OK") return { ok: false, text: "" };
+	// inputbox: values=[text]; textbox: values=[buttonLabel?, text] depending on shape.
+	const text = r.values[r.values.length - 1] ?? "";
+	return { ok: true, text };
+}
+
 async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promise<AskToolDetails> {
 	const options = normalizeOptions(params.options);
 	const { header, message } = buildHeader(params.question, params.context);
@@ -142,6 +167,7 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 	const allowFreeform = params.allowFreeform ?? true;
 	const allowMultiple = params.allowMultiple ?? false;
 	const allowComment = params.allowComment ?? false;
+	const freeformMultiline = params.freeformMultiline ?? false;
 
 	const detailsBase: AskToolDetails = {
 		question: params.question,
@@ -153,15 +179,10 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 
 	// Pure freeform path: no options.
 	if (options.length === 0) {
-		const r = await runCD(
-			bin,
-			["inputbox", "--title", "Pi", "--header", header, "--message", message, "--buttons", "OK", "Cancel", ...timeoutArgs],
-			signal,
-		);
-		if (r.button !== "OK") return { ...detailsBase, cancelled: true };
-		const text = r.values[0] ?? "";
+		const f = await freeformInput(bin, header, message, freeformMultiline, timeoutArgs, signal);
+		if (!f.ok) return { ...detailsBase, cancelled: true };
 		const comment = allowComment ? await askComment(bin, signal) : undefined;
-		return { ...detailsBase, response: { kind: "freeform", text, comment } };
+		return { ...detailsBase, response: { kind: "freeform", text: f.text, comment } };
 	}
 
 	// Build display labels (with optional descriptions appended).
@@ -227,15 +248,10 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 
 	// Freeform fallback was selected → second dialog for the actual text.
 	if (chosen.includes(FREEFORM_LABEL)) {
-		const f = await runCD(
-			bin,
-			["inputbox", "--title", "Pi", "--header", header, "--message", message || "Type your answer:", "--buttons", "OK", "Cancel"],
-			signal,
-		);
-		if (f.button !== "OK") return { ...detailsBase, cancelled: true };
-		const text = f.values[0] ?? "";
+		const f = await freeformInput(bin, header, message, freeformMultiline, [], signal);
+		if (!f.ok) return { ...detailsBase, cancelled: true };
 		const comment = allowComment ? await askComment(bin, signal) : undefined;
-		return { ...detailsBase, response: { kind: "freeform", text, comment } };
+		return { ...detailsBase, response: { kind: "freeform", text: f.text, comment } };
 	}
 
 	const titles = resolveTitles(chosen);

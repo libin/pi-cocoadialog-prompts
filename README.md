@@ -1,0 +1,89 @@
+# pi-cocoadialog-prompts
+
+A [pi-coding-agent](https://github.com/earendil-works/pi-coding-agent) extension
+that routes the `ask_user` tool to **native macOS dialogs** via
+[swift-cocoadialog](https://github.com/libin/swift-cocoadialog).
+
+Schema-compatible with [`pi-ask-user`](https://github.com/edlsh/pi-ask-user) — drop in either
+extension and the agent uses the same parameters.
+
+## When to use this
+
+- **Pi runs in a backgrounded terminal** (you're working in another window).
+- **Pi is in a hidden tmux pane** or another desktop / Space.
+- You want OS-level urgency: dock badge, app activation, audible bell on appearance.
+
+The native NSPanel calls `NSApp.activate(ignoringOtherApps:true)` so it pops to
+the front regardless of where pi is running. **Won't work on remote SSH** (no
+display) — fall back to `pi-ask-user` for those sessions.
+
+## Install
+
+1. Make sure `cocoadialog` is reachable. Either:
+   - Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog),
+     copy `.build/release/cocoadialog` into `/usr/local/bin/`
+   - Set `COCOADIALOG_BIN` to the absolute binary path
+   - Or rely on the bundled TextMate `Bundle Support.tmbundle` copy
+     (auto-detected).
+
+2. Load the extension:
+
+   ```sh
+   pi -e /path/to/cocoadialog-prompts.ts
+   ```
+
+## Tool
+
+- Name: `ask_user`
+- Schema (compatible with `pi-ask-user`):
+
+  | Parameter        | Type | Description |
+  |------------------|------|-------------|
+  | `question`       | `string` | The question (rendered as bold header) |
+  | `context`        | `string?` | Body text shown below the question |
+  | `options`        | `(string | {title, description?})[]?` | Multiple-choice options |
+  | `allowMultiple`  | `boolean?` | Multi-select (uses checkbox dialog) |
+  | `allowFreeform`  | `boolean?` (default true) | Adds a "Type something…" fallback |
+  | `allowComment`   | `boolean?` | Second prompt for an optional comment |
+  | `timeout`        | `number?` | Auto-dismiss in N milliseconds |
+
+## Result shape
+
+```ts
+type AskResponse =
+  | { kind: "selection"; selections: string[]; comment?: string }
+  | { kind: "freeform"; text: string; comment?: string };
+
+interface AskToolDetails {
+  question: string;
+  context?: string;
+  options: { title: string; description?: string }[];
+  response: AskResponse | null;
+  cancelled: boolean;
+}
+```
+
+## How it maps to dialogs
+
+| Input                                     | Native dialog          |
+|-------------------------------------------|------------------------|
+| No options                                | Inputbox (freeform)    |
+| Options + single-select + descriptions    | Radio buttons          |
+| Options + single-select (no descriptions) | Dropdown (NSPopUpButton) |
+| Options + `allowMultiple`                 | Checkboxes             |
+| `Type something…` selected                | Follow-up Inputbox     |
+| `allowComment`                            | Follow-up Inputbox     |
+
+Markdown in `question` / `context` is rendered (bold/italic/code/links).
+
+## Bundled skill: `ask-user`
+
+This package ships a skill at `skills/ask-user/SKILL.md` that nudges the agent
+to use `ask_user` before high-stakes or ambiguous decisions, with a strict
+question budget so the user isn't spammed with native dialogs. It mirrors
+`pi-ask-user`'s decision-handshake protocol but is tuned for the native NSPanel
+UX (where each call is more disruptive than a TUI overlay).
+
+## License
+
+MIT.

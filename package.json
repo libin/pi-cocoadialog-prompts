@@ -1,0 +1,12 @@
+{
+  "name": "pi-cocoadialog-prompts",
+  "version": "0.1.0",
+  "description": "Pi extension routing ask_user to native macOS dialogs via swift-cocoadialog",
+  "license": "MIT",
+  "main": "cocoadialog-prompts.ts",
+  "type": "module",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

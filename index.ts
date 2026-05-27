@@ -187,7 +187,6 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 
 	// Build display labels (with optional descriptions appended).
 	const displayLabels = options.map((o) => (o.description ? `${o.title} — ${o.description}` : o.title));
-	if (allowFreeform) displayLabels.push(FREEFORM_LABEL);
 
 	// Pick a control: radio for short single-select lists, dropdown for many,
 	// checkbox for multi-select.
@@ -195,27 +194,30 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 	if (allowMultiple) {
 		control = "checkbox";
 	} else if (displayLabels.length <= 8) {
-		// Radio surfaces every option at a glance and the freeform row.
 		control = "radio";
 	} else {
 		control = "dropdown";
+	}
+
+	// For radio with freeform, use the swift-cocoadialog --with-input flag
+	// so options + freeform input live in one dialog.
+	const inlineFreeform = allowFreeform && control === "radio";
+	const extraArgs: string[] = [];
+	if (inlineFreeform) {
+		extraArgs.push("--with-input", FREEFORM_LABEL);
+		if (freeformMultiline) extraArgs.push("--with-input-multiline");
 	}
 
 	const r = await runCD(
 		bin,
 		[
 			control,
-			"--title",
-			"Pi",
-			"--header",
-			header,
-			"--message",
-			message,
-			"--items",
-			...displayLabels,
-			"--buttons",
-			"OK",
-			"Cancel",
+			"--title", "Pi",
+			"--header", header,
+			"--message", message,
+			"--items", ...displayLabels,
+			...extraArgs,
+			"--buttons", "OK", "Cancel",
 			...timeoutArgs,
 		],
 		signal,
@@ -235,23 +237,25 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 
 	let chosen: string[];
 	if (control === "dropdown") {
-		// values: [index, title]
 		const t = r.values[r.values.length - 1] ?? "";
 		chosen = t ? [t] : [];
 	} else if (control === "radio") {
-		// First value is the selected radio label.
+		// values: [selectedLabel] or [labelOrFreeformText] when --with-input
 		chosen = r.values.slice(0, 1);
 	} else {
-		// checkbox: list of selected labels.
 		chosen = r.values;
 	}
 
-	// Freeform fallback was selected → second dialog for the actual text.
-	if (chosen.includes(FREEFORM_LABEL)) {
-		const f = await freeformInput(bin, header, message, freeformMultiline, [], signal);
-		if (!f.ok) return { ...detailsBase, cancelled: true };
+	// Inline-freeform path: when radio's selected value isn't one of the
+	// known display labels, treat it as the freeform answer.
+	if (inlineFreeform && chosen.length === 1 && !displayLabels.includes(chosen[0])) {
 		const comment = allowComment ? await askComment(bin, signal) : undefined;
-		return { ...detailsBase, response: { kind: "freeform", text: f.text, comment } };
+		return { ...detailsBase, response: { kind: "freeform", text: chosen[0], comment } };
+	}
+
+	// Legacy path: --with-input not supported (dropdown / multi-select with freeform).
+	if (allowFreeform && !inlineFreeform && displayLabels.length === 0) {
+		// (handled above by zero-options branch)
 	}
 
 	const titles = resolveTitles(chosen);

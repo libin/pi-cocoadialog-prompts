@@ -321,6 +321,17 @@ export default function (pi: ExtensionAPI) {
 		parameters: AskParams,
 
 		async execute(_id, params, signal) {
+			// When the toggle is off, return a sentinel that nudges the agent to
+			// ask the user via free text instead of opening a native dialog.
+			if (!nativeDialogsEnabled) {
+				return {
+					content: [{
+						type: "text",
+						text: "(native dialogs disabled via /native-dialogs — please ask the question in plain text)",
+					}],
+					details: { cancelled: true, response: null, question: params.question, options: normalizeOptions(params.options) },
+				};
+			}
 			try {
 				const details = await ask(bin, params, signal);
 				return {

@@ -344,13 +344,46 @@ export default function (pi: ExtensionAPI) {
 		if (!ctx?.ui) return;
 		patchUI(ctx.ui, bin);
 	}) as any);
+
+	// Slash command to toggle the native-dialog override on/off at runtime.
+	pi.registerCommand?.("native-dialogs", {
+		description: "Toggle pi-cocoadialog-prompts native dialog override on/off (default: on)",
+		handler: async (_args: any, ctx: any) => {
+			nativeDialogsEnabled = !nativeDialogsEnabled;
+			const msg = `pi-cocoadialog-prompts: native dialogs ${nativeDialogsEnabled ? "ON" : "OFF"} (TUI fallback active when OFF)`;
+			ctx?.ui?.notify?.(msg, "info");
+		},
+	});
+}
+
+let nativeDialogsEnabled = true;
+
+interface PatchedUI {
+	confirm?: (...args: any[]) => Promise<boolean>;
+	select?: (...args: any[]) => Promise<string | undefined>;
+	input?: (...args: any[]) => Promise<string | undefined>;
+	__cocoaPatched?: boolean;
+	__cocoaOriginals?: {
+		confirm?: (...args: any[]) => Promise<boolean>;
+		select?: (...args: any[]) => Promise<string | undefined>;
+		input?: (...args: any[]) => Promise<string | undefined>;
+	};
 }
 
 function patchUI(ui: any, bin: string): void {
-	if (ui.__cocoaPatched) return;
-	ui.__cocoaPatched = true;
+	const u: PatchedUI = ui;
+	if (u.__cocoaPatched) return;
+	u.__cocoaPatched = true;
+	u.__cocoaOriginals = {
+		confirm: ui.confirm?.bind(ui),
+		select: ui.select?.bind(ui),
+		input: ui.input?.bind(ui),
+	};
 
-	ui.confirm = async (title: string, message: string, _opts?: any): Promise<boolean> => {
+	ui.confirm = async (title: string, message: string, opts?: any): Promise<boolean> => {
+		if (!nativeDialogsEnabled) {
+			return u.__cocoaOriginals?.confirm ? u.__cocoaOriginals.confirm(title, message, opts) : false;
+		}
 		try {
 			const r = await runCD(bin, [
 				"msgbox",
@@ -365,7 +398,10 @@ function patchUI(ui: any, bin: string): void {
 		}
 	};
 
-	ui.select = async (title: string, opts: string[], _extra?: any): Promise<string | undefined> => {
+	ui.select = async (title: string, opts: string[], extra?: any): Promise<string | undefined> => {
+		if (!nativeDialogsEnabled) {
+			return u.__cocoaOriginals?.select ? u.__cocoaOriginals.select(title, opts, extra) : undefined;
+		}
 		try {
 			const items = (opts || []).map(String);
 			if (items.length === 0) return undefined;
@@ -384,7 +420,10 @@ function patchUI(ui: any, bin: string): void {
 		}
 	};
 
-	ui.input = async (title: string, placeholder?: string, _extra?: any): Promise<string | undefined> => {
+	ui.input = async (title: string, placeholder?: string, extra?: any): Promise<string | undefined> => {
+		if (!nativeDialogsEnabled) {
+			return u.__cocoaOriginals?.input ? u.__cocoaOriginals.input(title, placeholder, extra) : undefined;
+		}
 		try {
 			const args = [
 				"inputbox",

@@ -287,6 +287,39 @@ async function askComment(bin: string, signal?: AbortSignal): Promise<string | u
 // Result formatting
 // ---------------------------------------------------------------------------
 
+async function fallbackViaCtxUI(params: AskParamsT, ctx: any) {
+	const options = normalizeOptions(params.options);
+	const title = params.question;
+	const message = params.context ?? "";
+	const details: AskToolDetails = { question: title, context: message, options, response: null, cancelled: false };
+
+	try {
+		if (options.length === 0) {
+			const text: string | undefined = await ctx.ui.input?.(title, message);
+			if (text === undefined) {
+				details.cancelled = true;
+			} else {
+				details.response = { kind: "freeform", text };
+			}
+		} else {
+			const labels = options.map((o) => o.title);
+			const pick: string | undefined = await ctx.ui.select?.(title, labels);
+			if (pick === undefined) {
+				details.cancelled = true;
+			} else {
+				details.response = { kind: "selection", selections: [pick] };
+			}
+		}
+	} catch {
+		details.cancelled = true;
+	}
+
+	return {
+		content: [{ type: "text" as const, text: formatText(details) }],
+		details,
+	};
+}
+
 function formatText(d: AskToolDetails): string {
 	if (d.cancelled) return "(cancelled)";
 	if (!d.response) return "(no response)";
@@ -320,17 +353,11 @@ export default function (pi: ExtensionAPI) {
 			"Schema-compatible with pi-ask-user.",
 		parameters: AskParams,
 
-		async execute(_id, params, signal) {
-			// When the toggle is off, return a sentinel that nudges the agent to
-			// ask the user via free text instead of opening a native dialog.
-			if (!nativeDialogsEnabled) {
-				return {
-					content: [{
-						type: "text",
-						text: "(native dialogs disabled via /native-dialogs — please ask the question in plain text)",
-					}],
-					details: { cancelled: true, response: null, question: params.question, options: normalizeOptions(params.options) },
-				};
+		async execute(_id, params, _signal, _onUpdate, ctx: any) {
+			// When the native toggle is off, render via ctx.ui.* — those are
+			// patched by us and fall through to the original TUI when off.
+			if (!nativeDialogsEnabled && ctx?.ui) {
+				return await fallbackViaCtxUI(params, ctx);
 			}
 			try {
 				const details = await ask(bin, params, signal);

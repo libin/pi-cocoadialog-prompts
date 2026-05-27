@@ -191,11 +191,14 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 		return { ...detailsBase, response: { kind: "freeform", text: f.text, comment } };
 	}
 
-	// Build display labels (with optional descriptions appended; ★ for recommended).
+	// Build display labels (with optional descriptions appended).
+	// `recommended` options get a parenthetical suffix and become the
+	// default-selected radio (behavior conveys recommendation, not a leading badge).
 	const displayLabels = options.map((o) => {
-		const star = o.recommended ? "★ " : "";
-		return o.description ? `${star}${o.title} — ${o.description}` : `${star}${o.title}`;
+		const suffix = o.recommended ? " (recommended)" : "";
+		return o.description ? `${o.title} — ${o.description}${suffix}` : `${o.title}${suffix}`;
 	});
+	const recommendedIdx = options.findIndex((o) => o.recommended);
 
 	// Pick a control: radio for short single-select lists, dropdown for many,
 	// checkbox for multi-select.
@@ -225,6 +228,7 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 			"--header", header,
 			"--message", message,
 			"--items", ...displayLabels,
+			...(recommendedIdx >= 0 ? ["--checked", String(recommendedIdx)] : []),
 			...extraArgs,
 			"--buttons", "OK", "Cancel",
 			...timeoutArgs,

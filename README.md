@@ -52,7 +52,7 @@ Name: `ask_user`. Schema (compatible with `pi-ask-user`):
 |---------------------|------|-------------|
 | `question`          | `string` | The question (rendered as bold header) |
 | `context`           | `string?` | Body text shown below the question |
-| `options`           | `(string \| {title, description?})[]?` | Multiple-choice options |
+| `options`           | `(string \| {title, description?, recommended?})[]?` | Multiple-choice options. Set `recommended: true` to show a ★ badge before the title. |
 | `allowMultiple`     | `boolean?` | Multi-select (uses checkbox dialog) |
 | `allowFreeform`     | `boolean?` (default `true`) | Adds a "Type something…" fallback |
 | `allowComment`      | `boolean?` | Second prompt for an optional comment |

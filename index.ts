@@ -74,6 +74,7 @@ function runCD(bin: string, args: string[], signal?: AbortSignal): Promise<CDRes
 const OptionWithDesc = Type.Object({
 	title: Type.String({ description: "Display label" }),
 	description: Type.Optional(Type.String({ description: "Optional description" })),
+	recommended: Type.Optional(Type.Boolean({ description: "Mark this option as recommended (shows a ★ badge)" })),
 });
 
 const AskParams = Type.Object({
@@ -97,6 +98,7 @@ type AskParamsT = typeof AskParams.static;
 interface QuestionOption {
 	title: string;
 	description?: string;
+	recommended?: boolean;
 }
 
 type AskResponse =
@@ -113,7 +115,11 @@ interface AskToolDetails {
 
 function normalizeOptions(opts: AskParamsT["options"]): QuestionOption[] {
 	const arr = opts ?? [];
-	return arr.map((o) => (typeof o === "string" ? { title: o } : { title: o.title, description: o.description }));
+	return arr.map((o) =>
+		typeof o === "string"
+			? { title: o }
+			: { title: o.title, description: o.description, recommended: o.recommended },
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -185,8 +191,11 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 		return { ...detailsBase, response: { kind: "freeform", text: f.text, comment } };
 	}
 
-	// Build display labels (with optional descriptions appended).
-	const displayLabels = options.map((o) => (o.description ? `${o.title} — ${o.description}` : o.title));
+	// Build display labels (with optional descriptions appended; ★ for recommended).
+	const displayLabels = options.map((o) => {
+		const star = o.recommended ? "★ " : "";
+		return o.description ? `${star}${o.title} — ${o.description}` : `${star}${o.title}`;
+	});
 
 	// Pick a control: radio for short single-select lists, dropdown for many,
 	// checkbox for multi-select.

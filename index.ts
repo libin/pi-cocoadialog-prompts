@@ -408,6 +408,18 @@ interface PatchedUI {
 	};
 }
 
+function prettifyCommand(s: string): string {
+	if (!s) return s;
+	// Insert a leading newline before shell connectors so long bash commands
+	// are easier to read in a popup. Keep simple: only break on top-level
+	// connectors (we don't try to parse strings/quotes).
+	return s
+		.replace(/\s*&&\s*/g, "\n  && ")
+		.replace(/\s*\|\|\s*/g, "\n  || ")
+		.replace(/\s*;\s*/g, "\n  ; ")
+		.replace(/\s*\|\s*(?!\|)/g, " \\\n  | ");
+}
+
 function patchUI(ui: any, bin: string): void {
 	const u: PatchedUI = ui;
 	if (u.__cocoaPatched) return;
@@ -426,8 +438,8 @@ function patchUI(ui: any, bin: string): void {
 			const r = await runCD(bin, [
 				"msgbox",
 				"--title", "Pi",
-				"--header", title || "Confirm",
-				"--message", message || "",
+				"--header", prettifyCommand(title || "Confirm"),
+				"--message", prettifyCommand(message || ""),
 				"--buttons", "Yes", "No",
 			]);
 			return r.button === "Yes";
@@ -446,7 +458,7 @@ function patchUI(ui: any, bin: string): void {
 			const r = await runCD(bin, [
 				items.length <= 8 ? "radio" : "dropdown",
 				"--title", "Pi",
-				"--header", title || "Pick one",
+				"--header", prettifyCommand(title || "Pick one"),
 				"--items", ...items,
 				"--buttons", "OK", "Cancel",
 			]);

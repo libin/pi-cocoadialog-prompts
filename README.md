@@ -4,8 +4,8 @@ A [pi-coding-agent](https://github.com/earendil-works/pi-coding-agent) extension
 that routes the `ask_user` tool to **native macOS dialogs** via
 [swift-cocoadialog](https://github.com/libin/swift-cocoadialog).
 
-Schema-compatible with [`pi-ask-user`](https://github.com/edlsh/pi-ask-user) — drop in either
-extension and the agent uses the same parameters.
+Schema-compatible with [`pi-ask-user`](https://github.com/edlsh/pi-ask-user) —
+drop in either extension and the agent uses the same parameters.
 
 ## When to use this
 
@@ -30,43 +30,34 @@ first-wins ordering when multiple extensions register the same name
 for the native dialog to win.
 
 Make sure `cocoadialog` is reachable. Either:
-- Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog),
+
+- Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog) and
   copy `.build/release/cocoadialog` into `/usr/local/bin/`
 - Set `COCOADIALOG_BIN` to the absolute binary path
 - Or rely on the bundled TextMate `Bundle Support.tmbundle` copy
-  (auto-detected).
+  (auto-detected)
 
-To try without installing:
+To try without installing (`-e` mode skips the postinstall hook — ensure
+settings already put us first, or run `node scripts/promote.mjs` manually):
 
 ```sh
 pi -e git:github.com/libin/pi-cocoadialog-prompts
 ```
 
-(In `-e` mode the postinstall hook does not run; ensure your settings already
-put us first or call `node scripts/promote.mjs` manually.)
-
-Make sure `cocoadialog` is reachable. Either:
-   - Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog),
-     copy `.build/release/cocoadialog` into `/usr/local/bin/`
-   - Set `COCOADIALOG_BIN` to the absolute binary path
-   - Or rely on the bundled TextMate `Bundle Support.tmbundle` copy
-     (auto-detected).
-
 ## Tool
 
-- Name: `ask_user`
-- Schema (compatible with `pi-ask-user`):
+Name: `ask_user`. Schema (compatible with `pi-ask-user`):
 
-  | Parameter        | Type | Description |
-  |------------------|------|-------------|
-  | `question`       | `string` | The question (rendered as bold header) |
-  | `context`        | `string?` | Body text shown below the question |
-  | `options`        | `(string | {title, description?})[]?` | Multiple-choice options |
-  | `allowMultiple`  | `boolean?` | Multi-select (uses checkbox dialog) |
-  | `allowFreeform`  | `boolean?` (default true) | Adds a "Type something…" fallback |
-  | `allowComment`   | `boolean?` | Second prompt for an optional comment |
-  | `freeformMultiline` | `boolean?` | Use multi-line textbox (⌘⏎ submits) for freeform answer instead of single-line input |
-  | `timeout`        | `number?` | Auto-dismiss in N milliseconds |
+| Parameter           | Type | Description |
+|---------------------|------|-------------|
+| `question`          | `string` | The question (rendered as bold header) |
+| `context`           | `string?` | Body text shown below the question |
+| `options`           | `(string \| {title, description?})[]?` | Multiple-choice options |
+| `allowMultiple`     | `boolean?` | Multi-select (uses checkbox dialog) |
+| `allowFreeform`     | `boolean?` (default `true`) | Adds a "Type something…" fallback |
+| `allowComment`      | `boolean?` | Second prompt for an optional comment |
+| `freeformMultiline` | `boolean?` | Use multi-line textbox (⌘⏎ submits) for freeform answer |
+| `timeout`           | `number?` | Auto-dismiss in N milliseconds |
 
 ## Result shape
 
@@ -86,16 +77,15 @@ interface AskToolDetails {
 
 ## How it maps to dialogs
 
-| Input                                     | Native dialog          |
-|-------------------------------------------|------------------------|
-| No options                                | Inputbox (freeform)    |
-| Options + single-select + descriptions    | Radio buttons          |
-| Options + single-select (no descriptions) | Dropdown (NSPopUpButton) |
-| Options + `allowMultiple`                 | Checkboxes             |
-| `Type something…` selected                | Follow-up Inputbox     |
-| `allowComment`                            | Follow-up Inputbox     |
+| Input                                  | Native dialog |
+|----------------------------------------|---------------|
+| No options                             | Inputbox (single-line) or Textbox (`freeformMultiline`) |
+| Options + single-select (≤ 8 items)    | Radio buttons; freeform row is inline |
+| Options + single-select (> 8 items)    | Dropdown (NSPopUpButton); freeform falls back to second dialog |
+| Options + `allowMultiple`              | Checkboxes |
+| `allowComment`                         | Follow-up Inputbox |
 
-Markdown in `question` / `context` is rendered (bold/italic/code/links).
+Markdown in `question` / `context` is rendered (bold / italic / code / links).
 
 ## Bundled skill: `ask-user`
 

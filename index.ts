@@ -336,4 +336,69 @@ export default function (pi: ExtensionAPI) {
 			}
 		},
 	});
+
+	// Also reroute ctx.ui.{select,confirm,input} so OTHER extensions' TUI
+	// prompts (e.g. pi's bash permission gate, pi-agent-dashboard's confirms)
+	// also use native dialogs.
+	pi.on("session_start" as any, (async (_event: any, ctx: any) => {
+		if (!ctx?.ui) return;
+		patchUI(ctx.ui, bin);
+	}) as any);
+}
+
+function patchUI(ui: any, bin: string): void {
+	if (ui.__cocoaPatched) return;
+	ui.__cocoaPatched = true;
+
+	ui.confirm = async (title: string, message: string, _opts?: any): Promise<boolean> => {
+		try {
+			const r = await runCD(bin, [
+				"msgbox",
+				"--title", "Pi",
+				"--header", title || "Confirm",
+				"--message", message || "",
+				"--buttons", "Yes", "No",
+			]);
+			return r.button === "Yes";
+		} catch {
+			return false;
+		}
+	};
+
+	ui.select = async (title: string, opts: string[], _extra?: any): Promise<string | undefined> => {
+		try {
+			const items = (opts || []).map(String);
+			if (items.length === 0) return undefined;
+			const r = await runCD(bin, [
+				items.length <= 8 ? "radio" : "dropdown",
+				"--title", "Pi",
+				"--header", title || "Pick one",
+				"--items", ...items,
+				"--buttons", "OK", "Cancel",
+			]);
+			if (r.button !== "OK") return undefined;
+			const pick = r.values[r.values.length - 1] ?? "";
+			return items.includes(pick) ? pick : undefined;
+		} catch {
+			return undefined;
+		}
+	};
+
+	ui.input = async (title: string, placeholder?: string, _extra?: any): Promise<string | undefined> => {
+		try {
+			const args = [
+				"inputbox",
+				"--title", "Pi",
+				"--header", title || "Input",
+				"--message", "",
+				"--buttons", "OK", "Cancel",
+			];
+			if (placeholder) args.push("--placeholder", placeholder);
+			const r = await runCD(bin, args);
+			if (r.button !== "OK") return undefined;
+			return r.values[0] ?? "";
+		} catch {
+			return undefined;
+		}
+	};
 }

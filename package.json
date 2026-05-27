@@ -1,10 +1,38 @@
 {
   "name": "pi-cocoadialog-prompts",
   "version": "0.1.0",
-  "description": "Pi extension routing ask_user to native macOS dialogs via swift-cocoadialog",
+  "description": "Pi extension routing ask_user to native macOS NSPanel dialogs via swift-cocoadialog. Schema-compatible with pi-ask-user.",
   "license": "MIT",
-  "main": "cocoadialog-prompts.ts",
   "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "extension",
+    "ask",
+    "ask_user",
+    "macos",
+    "native",
+    "cocoadialog"
+  ],
+  "homepage": "https://github.com/libin/pi-cocoadialog-prompts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/libin/pi-cocoadialog-prompts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/libin/pi-cocoadialog-prompts/issues"
+  },
+  "files": [
+    "extensions",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"]
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"

@@ -19,18 +19,22 @@ display) — fall back to `pi-ask-user` for those sessions.
 
 ## Install
 
-1. Make sure `cocoadialog` is reachable. Either:
+```sh
+pi install git:github.com/libin/pi-cocoadialog-prompts
+```
+
+Or try without installing:
+
+```sh
+pi -e git:github.com/libin/pi-cocoadialog-prompts
+```
+
+Make sure `cocoadialog` is reachable. Either:
    - Build [swift-cocoadialog](https://github.com/libin/swift-cocoadialog),
      copy `.build/release/cocoadialog` into `/usr/local/bin/`
    - Set `COCOADIALOG_BIN` to the absolute binary path
    - Or rely on the bundled TextMate `Bundle Support.tmbundle` copy
      (auto-detected).
-
-2. Load the extension:
-
-   ```sh
-   pi -e /path/to/cocoadialog-prompts.ts
-   ```
 
 ## Tool
 

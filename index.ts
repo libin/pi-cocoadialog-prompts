@@ -354,7 +354,10 @@ type GateMode = "off" | "all" | "dangerous" | "named";
 
 function parseGateConfig(): { mode: GateMode; tools: Set<string> } {
 	const raw = (process.env.PI_COCOADIALOG_PERMISSIONS || "").trim().toLowerCase();
-	if (!raw || raw === "0" || raw === "off" || raw === "false") return { mode: "off", tools: new Set() };
+	// Default: gate dangerous patterns (rm -rf, sudo, curl|sh, etc.). Users can
+	// opt out with `off`, escalate to `all`, or pick named tools.
+	if (!raw) return { mode: "dangerous", tools: new Set() };
+	if (raw === "0" || raw === "off" || raw === "false") return { mode: "off", tools: new Set() };
 	if (raw === "1" || raw === "all" || raw === "true") return { mode: "all", tools: new Set() };
 	if (raw === "dangerous") return { mode: "dangerous", tools: new Set() };
 	return { mode: "named", tools: new Set(raw.split(",").map((s) => s.trim()).filter(Boolean)) };

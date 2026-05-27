@@ -192,12 +192,8 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 	}
 
 	// Build display labels (with optional descriptions appended).
-	// `recommended` options get a parenthetical suffix and become the
-	// default-selected radio (behavior conveys recommendation, not a leading badge).
-	const displayLabels = options.map((o) => {
-		const suffix = o.recommended ? " (recommended)" : "";
-		return o.description ? `${o.title} — ${o.description}${suffix}` : `${o.title}${suffix}`;
-	});
+	const displayLabels = options.map((o) => (o.description ? `${o.title} — ${o.description}` : o.title));
+	// swift-cocoadialog handles the recommendation styling (pre-check + muted suffix).
 	const recommendedIdx = options.findIndex((o) => o.recommended);
 
 	// Pick a control: radio for short single-select lists, dropdown for many,
@@ -228,7 +224,7 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 			"--header", header,
 			"--message", message,
 			"--items", ...displayLabels,
-			...(recommendedIdx >= 0 ? ["--checked", String(recommendedIdx)] : []),
+			...(recommendedIdx >= 0 ? ["--recommended", String(recommendedIdx)] : []),
 			...extraArgs,
 			"--buttons", "OK", "Cancel",
 			...timeoutArgs,

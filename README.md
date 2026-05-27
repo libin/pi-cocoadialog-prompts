@@ -108,20 +108,3 @@ UX (where each call is more disruptive than a TUI overlay).
 ## License
 
 MIT.
-
-## Optional: native permission gate
-
-This extension also gates risky tool calls (`bash`, `edit`, `write`, etc.)
-behind a native Allow / Deny dialog. **On by default in `dangerous` mode**
-(only risky shell patterns prompt; safe commands run silently). Override
-via the `PI_COCOADIALOG_PERMISSIONS` env var:
-
-| Value         | Behaviour |
-|---------------|-----------|
-| unset         | `dangerous` mode (default) |
-| `off` / `0`   | Disabled |
-| `dangerous`   | Only patterns matching `rm -rf`, `sudo`, `chmod 777`, `curl ... \| sh`, `dd if=`, `mkfs`, `> /dev/sd*` |
-| `1` / `all`   | Every `bash`/`edit`/`write`/`find`/`grep` call prompts |
-| `bash,write`  | Only the named tools |
-
-Fails closed: if the dialog can't be shown, the tool is blocked.

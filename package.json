@@ -24,13 +24,14 @@
     "url": "https://github.com/libin/pi-cocoadialog-prompts/issues"
   },
   "files": [
-    "extensions",
+    "index.ts",
     "skills",
     "README.md",
     "LICENSE"
   ],
+  "main": "./index.ts",
   "pi": {
-    "extensions": ["./extensions"],
+    "extensions": ["./index.ts"],
     "skills": ["./skills"]
   },
   "peerDependencies": {

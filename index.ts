@@ -344,43 +344,57 @@ export default function (pi: ExtensionAPI) {
 		return;
 	}
 
-	pi.registerTool({
-		name: "ask_user",
-		label: "Ask User (native dialog)",
-		description:
-			"Ask the user a question via a native macOS dialog (NSPanel). " +
-			"Pops to the front so the prompt is never missed, regardless of where pi runs. " +
-			"Schema-compatible with pi-ask-user.",
-		parameters: AskParams,
-
-		async execute(_id, params, _signal, _onUpdate, ctx: any) {
-			// When the native toggle is off, render via ctx.ui.* — those are
-			// patched by us and fall through to the original TUI when off.
-			if (!nativeDialogsEnabled && ctx?.ui) {
-				return await fallbackViaCtxUI(params, ctx);
-			}
-			try {
-				const details = await ask(bin, params, signal);
-				return {
-					content: [{ type: "text", text: formatText(details) }],
-					details,
-				};
-			} catch (e) {
-				const msg = (e as Error).message;
-				return {
-					content: [{ type: "text", text: `ask_user failed: ${msg}` }],
-					isError: true,
-				};
-			}
-		},
-	});
-
-	// Also reroute ctx.ui.{select,confirm,input} so OTHER extensions' TUI
-	// prompts (e.g. pi's bash permission gate, pi-agent-dashboard's confirms)
-	// also use native dialogs.
+	// Defer ask_user registration to session_start so we can yield to other
+	// extensions (e.g. OpenCandle) that ship their own ask_user. Pi's
+	// load-time conflict check only sees tools registered during the
+	// extension factory call, so registering later avoids the
+	// `Tool "ask_user" conflicts with ...` error and lets both extensions
+	// coexist. When another extension already owns ask_user, our ctx.ui
+	// patch below still routes its prompts through native dialogs.
 	pi.on("session_start" as any, (async (_event: any, ctx: any) => {
-		if (!ctx?.ui) return;
-		patchUI(ctx.ui, bin);
+		if (ctx?.ui) patchUI(ctx.ui, bin);
+
+		if (askUserRegistered) return;
+		const all = (pi as any).getAllTools?.() ?? [];
+		const owned = all.find((t: any) => t?.name === "ask_user");
+		if (owned) {
+			console.error(
+				`[cocoadialog-prompts] another extension already registered ask_user (${owned?.sourceInfo?.path ?? "unknown"}); skipping our registration. ctx.ui.* still routed through native dialogs.`,
+			);
+			return;
+		}
+
+		pi.registerTool({
+			name: "ask_user",
+			label: "Ask User (native dialog)",
+			description:
+				"Ask the user a question via a native macOS dialog (NSPanel). " +
+				"Pops to the front so the prompt is never missed, regardless of where pi runs. " +
+				"Schema-compatible with pi-ask-user.",
+			parameters: AskParams,
+
+			async execute(_id, params, _signal, _onUpdate, ctx: any) {
+				// When the native toggle is off, render via ctx.ui.* — those are
+				// patched by us and fall through to the original TUI when off.
+				if (!nativeDialogsEnabled && ctx?.ui) {
+					return await fallbackViaCtxUI(params, ctx);
+				}
+				try {
+					const details = await ask(bin, params, signal);
+					return {
+						content: [{ type: "text", text: formatText(details) }],
+						details,
+					};
+				} catch (e) {
+					const msg = (e as Error).message;
+					return {
+						content: [{ type: "text", text: `ask_user failed: ${msg}` }],
+						isError: true,
+					};
+				}
+			},
+		});
+		askUserRegistered = true;
 	}) as any);
 
 	// Slash command to toggle the native-dialog override on/off at runtime.
@@ -395,6 +409,7 @@ export default function (pi: ExtensionAPI) {
 }
 
 let nativeDialogsEnabled = true;
+let askUserRegistered = false;
 
 interface PatchedUI {
 	confirm?: (...args: any[]) => Promise<boolean>;

@@ -373,7 +373,7 @@ export default function (pi: ExtensionAPI) {
 				"Schema-compatible with pi-ask-user.",
 			parameters: AskParams,
 
-			async execute(_id, params, _signal, _onUpdate, ctx: any) {
+			async execute(_id, params, signal, _onUpdate, ctx: any) {
 				// When the native toggle is off, render via ctx.ui.* — those are
 				// patched by us and fall through to the original TUI when off.
 				if (!nativeDialogsEnabled && ctx?.ui) {
@@ -415,11 +415,13 @@ interface PatchedUI {
 	confirm?: (...args: any[]) => Promise<boolean>;
 	select?: (...args: any[]) => Promise<string | undefined>;
 	input?: (...args: any[]) => Promise<string | undefined>;
+	multiselect?: (...args: any[]) => Promise<string[] | undefined>;
 	__cocoaPatched?: boolean;
 	__cocoaOriginals?: {
 		confirm?: (...args: any[]) => Promise<boolean>;
 		select?: (...args: any[]) => Promise<string | undefined>;
 		input?: (...args: any[]) => Promise<string | undefined>;
+		multiselect?: (...args: any[]) => Promise<string[] | undefined>;
 	};
 }
 
@@ -443,6 +445,7 @@ function patchUI(ui: any, bin: string): void {
 		confirm: ui.confirm?.bind(ui),
 		select: ui.select?.bind(ui),
 		input: ui.input?.bind(ui),
+		multiselect: ui.multiselect?.bind(ui),
 	};
 
 	ui.confirm = async (title: string, message: string, opts?: any): Promise<boolean> => {
@@ -501,6 +504,36 @@ function patchUI(ui: any, bin: string): void {
 			const r = await runCD(bin, args);
 			if (r.button !== "OK") return undefined;
 			return r.values[0] ?? "";
+		} catch {
+			return undefined;
+		}
+	};
+
+	// Multi-select: the dashboard's ask_user advertises `multiselect` and its
+	// polyfill's primary path delegates to `ctx.ui.multiselect` when present.
+	// pi core does NOT provide this method, so without patching it dashboard
+	// routes multiselect to its (often unwatched) web client and the tool hangs
+	// with "No result provided". Render it natively with the checkbox control.
+	ui.multiselect = async (title: string, opts: string[], extra?: any): Promise<string[] | undefined> => {
+		if (!nativeDialogsEnabled) {
+			return u.__cocoaOriginals?.multiselect ? u.__cocoaOriginals.multiselect(title, opts, extra) : undefined;
+		}
+		try {
+			const items = (opts || []).map(String);
+			if (items.length === 0) return [];
+			const message = typeof extra?.message === "string" ? extra.message : "";
+			const r = await runCD(bin, [
+				"checkbox",
+				"--title", "Pi",
+				"--header", prettifyCommand(title || "Select any"),
+				...(message ? ["--message", prettifyCommand(message)] : []),
+				"--items", ...items,
+				"--buttons", "OK", "Cancel",
+			]);
+			if (r.button !== "OK") return undefined;
+			// Keep only known labels, preserving the caller's option order.
+			const picked = new Set(r.values.map(String));
+			return items.filter((it) => picked.has(it));
 		} catch {
 			return undefined;
 		}

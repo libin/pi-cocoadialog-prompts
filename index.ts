@@ -425,16 +425,17 @@ interface PatchedUI {
 	};
 }
 
-function prettifyCommand(s: string): string {
-	if (!s) return s;
-	// Insert a leading newline before shell connectors so long bash commands
-	// are easier to read in a popup. Keep simple: only break on top-level
-	// connectors (we don't try to parse strings/quotes).
-	return s
-		.replace(/\s*&&\s*/g, "\n  && ")
-		.replace(/\s*\|\|\s*/g, "\n  || ")
-		.replace(/\s*;\s*/g, "\n  ; ")
-		.replace(/\s*\|\s*(?!\|)/g, " \\\n  | ");
+function splitPrompt(title: string): { header: string; message: string } {
+	// Approval gates pass the whole command as the prompt, e.g.
+	// "Confirm: rm -rf …". Put the short label in --header and the (possibly
+	// long) command in --message so the native dialog renders it in its
+	// scrollable, syntax-highlighted, height-capped body with the buttons pinned
+	// on-screen.
+	const t = title || "";
+	const m = t.match(/^\s*([^\n:]{1,40}):\s*([\s\S]+)$/);
+	if (m) return { header: m[1].trim(), message: m[2].trim() };
+	if (t.length > 60 || t.includes("\n")) return { header: "Select", message: t };
+	return { header: t, message: "" };
 }
 
 function patchUI(ui: any, bin: string): void {
@@ -456,8 +457,8 @@ function patchUI(ui: any, bin: string): void {
 			const r = await runCD(bin, [
 				"msgbox",
 				"--title", "Pi",
-				"--header", prettifyCommand(title || "Confirm"),
-				"--message", prettifyCommand(message || ""),
+				"--header", title || "Confirm",
+				"--message", message || "",
 				"--buttons", "Yes", "No",
 			]);
 			return r.button === "Yes";
@@ -473,10 +474,16 @@ function patchUI(ui: any, bin: string): void {
 		try {
 			const items = (opts || []).map(String);
 			if (items.length === 0) return undefined;
+			// Route the (possibly long) prompt/command into --message so the native
+			// dialog renders it in a scrollable, syntax-highlighted, height-capped
+			// body with the choices + buttons pinned on-screen. Approval gates call
+			// select("Confirm: <command>", ["Allow","Block"]).
+			const { header, message } = splitPrompt(title || "Pick one");
 			const r = await runCD(bin, [
 				items.length <= 8 ? "radio" : "dropdown",
 				"--title", "Pi",
-				"--header", prettifyCommand(title || "Pick one"),
+				"--header", header,
+				...(message ? ["--message", message] : []),
 				"--items", ...items,
 				"--buttons", "OK", "Cancel",
 			]);
@@ -521,12 +528,15 @@ function patchUI(ui: any, bin: string): void {
 		try {
 			const items = (opts || []).map(String);
 			if (items.length === 0) return [];
-			const message = typeof extra?.message === "string" ? extra.message : "";
+			const explicit = typeof extra?.message === "string" ? extra.message : "";
+			const split = splitPrompt(title || "Select any");
+			const header = explicit ? title || "Select any" : split.header;
+			const message = explicit || split.message;
 			const r = await runCD(bin, [
 				"checkbox",
 				"--title", "Pi",
-				"--header", prettifyCommand(title || "Select any"),
-				...(message ? ["--message", prettifyCommand(message)] : []),
+				"--header", header,
+				...(message ? ["--message", message] : []),
 				"--items", ...items,
 				"--buttons", "OK", "Cancel",
 			]);

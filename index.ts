@@ -196,15 +196,17 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 	// swift-cocoadialog handles the recommendation styling (pre-check + muted suffix).
 	const recommendedIdx = options.findIndex((o) => o.recommended);
 
-	// Pick a control: radio for short single-select lists, dropdown for many,
-	// checkbox for multi-select.
+	// Pick a control: radio for single-select (any length), checkbox for
+	// multi-select. Dropdown is deliberately NOT used: an NSPopUpButton sizes
+	// itself to its widest item, so long labels (e.g. browser tab titles from
+	// chrome-tab) stretched the window past the screen and pushed the buttons out
+	// of view. Radio wraps long labels and the native control scrolls when the
+	// list is long, so it degrades gracefully in both dimensions.
 	let control: string;
 	if (allowMultiple) {
 		control = "checkbox";
-	} else if (displayLabels.length <= 8) {
-		control = "radio";
 	} else {
-		control = "dropdown";
+		control = "radio";
 	}
 
 	// For radio with freeform, use the swift-cocoadialog --with-input flag
@@ -245,10 +247,7 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 			.filter((s) => !!s);
 
 	let chosen: string[];
-	if (control === "dropdown") {
-		const t = r.values[r.values.length - 1] ?? "";
-		chosen = t ? [t] : [];
-	} else if (control === "radio") {
+	if (control === "radio") {
 		// values: [selectedLabel] or [labelOrFreeformText] when --with-input
 		chosen = r.values.slice(0, 1);
 	} else {
@@ -260,11 +259,6 @@ async function ask(bin: string, params: AskParamsT, signal?: AbortSignal): Promi
 	if (inlineFreeform && chosen.length === 1 && !displayLabels.includes(chosen[0])) {
 		const comment = allowComment ? await askComment(bin, signal) : undefined;
 		return { ...detailsBase, response: { kind: "freeform", text: chosen[0], comment } };
-	}
-
-	// Legacy path: --with-input not supported (dropdown / multi-select with freeform).
-	if (allowFreeform && !inlineFreeform && displayLabels.length === 0) {
-		// (handled above by zero-options branch)
 	}
 
 	const titles = resolveTitles(chosen);
@@ -480,7 +474,10 @@ function patchUI(ui: any, bin: string): void {
 			// select("Confirm: <command>", ["Allow","Block"]).
 			const { header, message } = splitPrompt(title || "Pick one");
 			const r = await runCD(bin, [
-				items.length <= 8 ? "radio" : "dropdown",
+				// Always radio: it wraps long labels and scrolls when the list is long.
+				// Dropdown would size itself to its widest item and push the buttons
+				// off-screen (chrome-tab titles are the pathological case).
+				"radio",
 				"--title", "Pi",
 				"--header", header,
 				...(message ? ["--message", message] : []),

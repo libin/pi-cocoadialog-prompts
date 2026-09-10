@@ -419,6 +419,23 @@ interface PatchedUI {
 	};
 }
 
+/// Max characters shown per option label. chrome-tab builds
+/// "<id>  <title>  <url>" and OAuth/SSO URLs carry ~1400-char JWTs; at dialog
+/// width that wraps to ~15 lines for a SINGLE row and swamps the list.
+const MAX_LABEL_CHARS = 180;
+
+/// Shorten a label for display. Truncation is display-only — callers map the
+/// user's pick back to the original string by index, never by this text.
+/// `index` is appended on truncation so two rows sharing a long prefix (e.g.
+/// several "AppleConnect Sign In" tabs) stay visually distinct and unambiguous.
+function truncateLabel(s: string, index: number): string {
+	// Collapse newlines/runs of whitespace first: a single embedded newline would
+	// otherwise blow up the row height on its own.
+	const flat = s.replace(/\s+/g, " ").trim();
+	if (flat.length <= MAX_LABEL_CHARS) return flat;
+	return `${flat.slice(0, MAX_LABEL_CHARS - 1).trimEnd()}… (#${index + 1})`;
+}
+
 function splitPrompt(title: string): { header: string; message: string } {
 	// Approval gates pass the whole command as the prompt, e.g.
 	// "Confirm: rm -rf …". Put the short label in --header and the (possibly
@@ -468,6 +485,11 @@ function patchUI(ui: any, bin: string): void {
 		try {
 			const items = (opts || []).map(String);
 			if (items.length === 0) return undefined;
+			// Cap each label: chrome-tab builds "<id>  <title>  <url>" and OAuth URLs
+			// carry ~1400-char JWTs, which wrap to ~15 lines per row and swamp the
+			// list. Truncate for DISPLAY only and map the pick back by index, so the
+			// caller still receives its exact original string.
+			const shown = items.map((s, i) => truncateLabel(s, i));
 			// Route the (possibly long) prompt/command into --message so the native
 			// dialog renders it in a scrollable, syntax-highlighted, height-capped
 			// body with the choices + buttons pinned on-screen. Approval gates call
@@ -481,12 +503,13 @@ function patchUI(ui: any, bin: string): void {
 				"--title", "Pi",
 				"--header", header,
 				...(message ? ["--message", message] : []),
-				"--items", ...items,
+				"--items", ...shown,
 				"--buttons", "OK", "Cancel",
 			]);
 			if (r.button !== "OK") return undefined;
 			const pick = r.values[r.values.length - 1] ?? "";
-			return items.includes(pick) ? pick : undefined;
+			const idx = shown.indexOf(pick);
+			return idx >= 0 ? items[idx] : undefined;
 		} catch {
 			return undefined;
 		}
@@ -525,6 +548,8 @@ function patchUI(ui: any, bin: string): void {
 		try {
 			const items = (opts || []).map(String);
 			if (items.length === 0) return [];
+			// Display-only truncation (see ui.select); picks map back by index.
+			const shown = items.map((s, i) => truncateLabel(s, i));
 			const explicit = typeof extra?.message === "string" ? extra.message : "";
 			const split = splitPrompt(title || "Select any");
 			const header = explicit ? title || "Select any" : split.header;
@@ -534,13 +559,14 @@ function patchUI(ui: any, bin: string): void {
 				"--title", "Pi",
 				"--header", header,
 				...(message ? ["--message", message] : []),
-				"--items", ...items,
+				"--items", ...shown,
 				"--buttons", "OK", "Cancel",
 			]);
 			if (r.button !== "OK") return undefined;
-			// Keep only known labels, preserving the caller's option order.
+			// Map the checked display labels back to the caller's originals by index,
+			// preserving the caller's option order.
 			const picked = new Set(r.values.map(String));
-			return items.filter((it) => picked.has(it));
+			return items.filter((_it, i) => picked.has(shown[i]));
 		} catch {
 			return undefined;
 		}
